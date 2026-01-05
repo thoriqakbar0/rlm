@@ -42,19 +42,39 @@ test = [
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+extend-exclude = ["docs-internal"]
 
 [tool.ruff.lint]
 select = [
-    "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings
-    "F",   # pyflakes
-    "I",   # isort
-    "B",   # flake8-bugbear
-    "UP",  # pyupgrade
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "F",     # pyflakes
+    "I",     # isort
+    "B",     # flake8-bugbear
+    "UP",    # pyupgrade
+    "C4",    # flake8-comprehensions
+    "SIM",   # flake8-simplify
+    "PIE",   # flake8-pie
+    "RUF",   # ruff-specific
+    "PERF",  # perflint
+    "T20",   # flake8-print
+    "ASYNC", # flake8-async
 ]
 ignore = [
-    "E501",  # line too long (handled by formatter)
+    "E501",    # line too long (handled by formatter)
+    "SIM108",  # ternary operator (sometimes less readable)
+    "SIM102",  # nested if (sometimes clearer)
+    "SIM105",  # contextlib.suppress (try-except-pass is fine)
+    "PERF203", # try-except in loop (sometimes unavoidable)
+    "RUF005",  # iterable unpacking (list + [x] is fine)
+    "RUF012",  # ClassVar for mutable class attrs (too strict)
+    "RUF013",  # implicit Optional (ty handles this)
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"examples/*" = ["T20"]
+"tests/*" = ["T20"]
+"rlm/utils/parsing.py" = ["T20"]  # existing debug print
 
 [tool.ruff.format]
 quote-style = "double"

@@ -140,7 +140,7 @@ def check_for_final_answer(response: str, repl_env, logger) -> str | None:
                 logger.log_tool_execution("FINAL_VAR", error_msg)
                 return None
         except Exception as e:
-            error_msg = f"Error retrieving variable '{variable_name}': {str(e)}"
+            error_msg = f"Error retrieving variable '{variable_name}': {e!s}"
             print("ERROR MESSAGE", error_msg)
             logger.log_tool_execution("FINAL_VAR", error_msg)
             return None
