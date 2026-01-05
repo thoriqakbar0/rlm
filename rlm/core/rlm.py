@@ -51,6 +51,7 @@ class RLM:
         other_backend_kwargs: list[dict[str, Any]] | None = None,
         logger: RLMLogger | None = None,
         verbose: bool = False,
+        persistent: bool = False,
     ):
         """
         Args:
@@ -66,6 +67,7 @@ class RLM:
             other_backend_kwargs: The kwargs to pass to the other client backends (ordered to match other_backends).
             logger: The logger to use for the RLM.
             verbose: Whether to print verbose output in rich to console.
+            persistent: If True, reuse the environment across completion() calls for multi-turn conversations.
         """
         # Store config for spawning per-completion
         self.backend = backend
@@ -83,6 +85,10 @@ class RLM:
         self.system_prompt = custom_system_prompt if custom_system_prompt else RLM_SYSTEM_PROMPT
         self.logger = logger
         self.verbose = VerbosePrinter(enabled=verbose)
+
+        # Persistence support
+        self.persistent = persistent
+        self._persistent_env: BaseEnv | None = None
 
         # Log metadata if logger is provided
         if self.logger or verbose:
@@ -108,7 +114,9 @@ class RLM:
     def _spawn_completion_context(self, prompt: str | dict[str, Any]):
         """
         Spawn an LM handler and environment for a single completion call.
-        Cleans up both when the context exits.
+
+        When persistent=True, the environment is reused across calls.
+        When persistent=False (default), creates fresh environment each call.
         """
         # Create client and wrap in handler
         client: BaseLM = get_client(self.backend, self.backend_kwargs)
@@ -122,20 +130,25 @@ class RLM:
 
         lm_handler.start()
 
-        # Pass handler address to environment so it can make llm_query() calls
-        env_kwargs = self.environment_kwargs.copy()
-        env_kwargs["lm_handler_address"] = (lm_handler.host, lm_handler.port)
-        env_kwargs["context_payload"] = prompt
+        # Environment: reuse if persistent, otherwise create fresh
+        if self.persistent and self._persistent_env is not None:
+            environment = self._persistent_env
+            environment.update_handler_address((lm_handler.host, lm_handler.port))
+            environment.add_context(prompt)
+        else:
+            env_kwargs = self.environment_kwargs.copy()
+            env_kwargs["lm_handler_address"] = (lm_handler.host, lm_handler.port)
+            env_kwargs["context_payload"] = prompt
+            environment: BaseEnv = get_environment(self.environment_type, env_kwargs)
 
-        # Initialize the environment
-        environment: BaseEnv = get_environment(self.environment_type, env_kwargs)
+            if self.persistent:
+                self._persistent_env = environment
 
         try:
             yield lm_handler, environment
         finally:
-            # Cleanup
             lm_handler.stop()
-            if hasattr(environment, "cleanup"):
+            if not self.persistent and hasattr(environment, "cleanup"):
                 environment.cleanup()
 
     def _setup_prompt(self, prompt: str | dict[str, Any]) -> list[dict[str, Any]]:
@@ -292,3 +305,17 @@ class RLM:
         client: BaseLM = get_client(self.backend, self.backend_kwargs)
         response = client.completion(message)
         return response
+
+    def close(self) -> None:
+        """Clean up persistent environment. Call when done with multi-turn conversations."""
+        if self._persistent_env is not None:
+            if hasattr(self._persistent_env, "cleanup"):
+                self._persistent_env.cleanup()
+            self._persistent_env = None
+
+    def __enter__(self) -> "RLM":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
+        self.close()
+        return False
