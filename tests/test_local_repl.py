@@ -227,4 +227,3 @@ class TestLocalREPLMultiContext:
         assert repl.locals["context_1"] == "Second"
         assert repl.get_context_count() == 2
         repl.cleanup()
-
