@@ -90,6 +90,10 @@ class RLM:
         self.persistent = persistent
         self._persistent_env: BaseEnv | None = None
 
+        # Validate persistence support at initialization
+        if self.persistent:
+            self._validate_persistent_environment_support()
+
         # Log metadata if logger is provided
         if self.logger or verbose:
             metadata = RLMMetadata(
@@ -133,6 +137,13 @@ class RLM:
         # Environment: reuse if persistent, otherwise create fresh
         if self.persistent and self._persistent_env is not None:
             environment = self._persistent_env
+            # Defensive check: ensure environment supports persistence methods
+            if not self._env_supports_persistence(environment):
+                raise RuntimeError(
+                    f"Persistent environment of type '{type(environment).__name__}' does not "
+                    f"implement required methods (update_handler_address, add_context, get_context_count). "
+                    f"This should have been caught at initialization."
+                )
             environment.update_handler_address((lm_handler.host, lm_handler.port))
             environment.add_context(prompt)
         else:
@@ -312,6 +323,43 @@ class RLM:
         client: BaseLM = get_client(self.backend, self.backend_kwargs)
         response = client.completion(message)
         return response
+
+    def _validate_persistent_environment_support(self) -> None:
+        """
+        Validate that the configured environment type supports persistent mode.
+
+        Persistent mode requires environments to implement:
+        - update_handler_address(address): Update LM handler address between calls
+        - add_context(payload, index): Add new context for multi-turn conversations
+        - get_context_count(): Return the number of loaded contexts
+
+        Currently only 'local' (LocalREPL) supports these methods.
+
+        Raises:
+            ValueError: If the environment type does not support persistent mode.
+        """
+        # Known environments that support persistence
+        persistent_supported_environments = {"local"}
+
+        if self.environment_type not in persistent_supported_environments:
+            raise ValueError(
+                f"persistent=True is not supported for environment type '{self.environment_type}'. "
+                f"Persistent mode requires environments that implement update_handler_address(), "
+                f"add_context(), and get_context_count(). "
+                f"Supported environments: {sorted(persistent_supported_environments)}"
+            )
+
+    @staticmethod
+    def _env_supports_persistence(env: BaseEnv) -> bool:
+        """Check if an environment instance supports persistent mode methods."""
+        return (
+            hasattr(env, "update_handler_address")
+            and hasattr(env, "add_context")
+            and hasattr(env, "get_context_count")
+            and callable(getattr(env, "update_handler_address", None))
+            and callable(getattr(env, "add_context", None))
+            and callable(getattr(env, "get_context_count", None))
+        )
 
     def close(self) -> None:
         """Clean up persistent environment. Call when done with multi-turn conversations."""
