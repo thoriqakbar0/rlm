@@ -206,8 +206,13 @@ class RLM:
                     if hasattr(environment, "get_context_count")
                     else 1
                 )
+                history_count = (
+                    environment.get_history_count()
+                    if hasattr(environment, "get_history_count")
+                    else 0
+                )
                 current_prompt = message_history + [
-                    build_user_prompt(root_prompt, i, context_count)
+                    build_user_prompt(root_prompt, i, context_count, history_count)
                 ]
 
                 iteration: RLMIteration = self._completion_turn(
@@ -232,6 +237,11 @@ class RLM:
                     usage = lm_handler.get_usage_summary()
                     self.verbose.print_final_answer(final_answer)
                     self.verbose.print_summary(i + 1, time_end - time_start, usage.to_dict())
+
+                    # Store message history in persistent environment
+                    if self.persistent and hasattr(environment, "add_history"):
+                        environment.add_history(message_history)
+
                     return RLMChatCompletion(
                         root_model=self.backend_kwargs.get("model_name", "unknown")
                         if self.backend_kwargs
@@ -254,6 +264,11 @@ class RLM:
             usage = lm_handler.get_usage_summary()
             self.verbose.print_final_answer(final_answer)
             self.verbose.print_summary(self.max_iterations, time_end - time_start, usage.to_dict())
+
+            # Store message history in persistent environment
+            if self.persistent and hasattr(environment, "add_history"):
+                environment.add_history(message_history)
+
             return RLMChatCompletion(
                 root_model=self.backend_kwargs.get("model_name", "unknown")
                 if self.backend_kwargs
@@ -356,9 +371,13 @@ class RLM:
             hasattr(env, "update_handler_address")
             and hasattr(env, "add_context")
             and hasattr(env, "get_context_count")
+            and hasattr(env, "add_history")
+            and hasattr(env, "get_history_count")
             and callable(getattr(env, "update_handler_address", None))
             and callable(getattr(env, "add_context", None))
             and callable(getattr(env, "get_context_count", None))
+            and callable(getattr(env, "add_history", None))
+            and callable(getattr(env, "get_history_count", None))
         )
 
     def close(self) -> None:

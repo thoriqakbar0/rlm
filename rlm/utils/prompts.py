@@ -120,6 +120,7 @@ def build_user_prompt(
     root_prompt: str | None = None,
     iteration: int = 0,
     context_count: int = 1,
+    history_count: int = 0,
 ) -> dict[str, str]:
     if iteration == 0:
         safeguard = "You have not interacted with the REPL environment or seen your prompt / context yet. Your next action should be to look through and figure out how to answer the prompt, so don't just provide a final answer yet.\n\n"
@@ -134,5 +135,12 @@ def build_user_prompt(
     # Inform model about multiple contexts if present
     if context_count > 1:
         prompt += f"\n\nNote: You have {context_count} contexts available (context_0 through context_{context_count - 1})."
+
+    # Inform model about prior conversation histories if present
+    if history_count > 0:
+        if history_count == 1:
+            prompt += "\n\nNote: You have 1 prior conversation history available in the `history` variable."
+        else:
+            prompt += f"\n\nNote: You have {history_count} prior conversation histories available (history_0 through history_{history_count - 1})."
 
     return {"role": "user", "content": prompt}

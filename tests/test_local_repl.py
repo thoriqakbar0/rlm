@@ -227,3 +227,73 @@ class TestLocalREPLMultiContext:
         assert repl.locals["context_1"] == "Second"
         assert repl.get_context_count() == 2
         repl.cleanup()
+
+
+class TestLocalREPLHistory:
+    """Tests for message history storage in LocalREPL."""
+
+    def test_add_history_basic(self):
+        """Test that add_history stores message history correctly."""
+        repl = LocalREPL()
+
+        history = [
+            {"role": "system", "content": "You are helpful."},
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hi there!"},
+        ]
+
+        index = repl.add_history(history)
+
+        assert index == 0
+        assert "history_0" in repl.locals
+        assert "history" in repl.locals  # alias
+        assert repl.locals["history_0"] == history
+        assert repl.locals["history"] == history
+        assert repl.get_history_count() == 1
+
+        repl.cleanup()
+
+    def test_add_multiple_histories(self):
+        """Test adding multiple conversation histories."""
+        repl = LocalREPL()
+
+        history1 = [{"role": "user", "content": "First conversation"}]
+        history2 = [{"role": "user", "content": "Second conversation"}]
+
+        repl.add_history(history1)
+        repl.add_history(history2)
+
+        assert repl.get_history_count() == 2
+        assert repl.locals["history_0"] == history1
+        assert repl.locals["history_1"] == history2
+        assert repl.locals["history"] == history1  # alias stays on first
+
+        repl.cleanup()
+
+    def test_history_accessible_via_code(self):
+        """Test that stored history is accessible via code execution."""
+        repl = LocalREPL()
+
+        history = [{"role": "user", "content": "Test message"}]
+        repl.add_history(history)
+
+        result = repl.execute_code("msg = history[0]['content']")
+        assert result.stderr == ""
+        assert repl.locals["msg"] == "Test message"
+
+        repl.cleanup()
+
+    def test_history_is_copy(self):
+        """Test that stored history is a copy, not a reference."""
+        repl = LocalREPL()
+
+        history = [{"role": "user", "content": "Original"}]
+        repl.add_history(history)
+
+        # Modify original
+        history[0]["content"] = "Modified"
+
+        # Stored copy should be unchanged
+        assert repl.locals["history_0"][0]["content"] == "Original"
+
+        repl.cleanup()

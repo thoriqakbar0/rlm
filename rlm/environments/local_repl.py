@@ -1,3 +1,4 @@
+import copy
 import io
 import json
 import os
@@ -131,6 +132,7 @@ class LocalREPL(NonIsolatedEnv):
         self.temp_dir = tempfile.mkdtemp(prefix=f"repl_env_{uuid.uuid4()}_")
         self._lock = threading.Lock()
         self._context_count: int = 0
+        self._history_count: int = 0
 
         # Setup globals, locals, and modules in environment.
         self.setup()
@@ -271,6 +273,38 @@ class LocalREPL(NonIsolatedEnv):
     def get_context_count(self) -> int:
         """Return the number of contexts loaded."""
         return self._context_count
+
+    def add_history(
+        self, message_history: list[dict[str, Any]], history_index: int | None = None
+    ) -> int:
+        """
+        Store a conversation's message history as a versioned variable.
+
+        Args:
+            message_history: The list of message dicts from a completion call
+            history_index: Optional explicit index. If None, auto-increments.
+
+        Returns:
+            The history index used.
+        """
+        if history_index is None:
+            history_index = self._history_count
+
+        var_name = f"history_{history_index}"
+
+        # Store deep copy to avoid reference issues with nested dicts
+        self.locals[var_name] = copy.deepcopy(message_history)
+
+        # Alias history_0 as 'history' for convenience
+        if history_index == 0:
+            self.locals["history"] = self.locals[var_name]
+
+        self._history_count = max(self._history_count, history_index + 1)
+        return history_index
+
+    def get_history_count(self) -> int:
+        """Return the number of conversation histories stored."""
+        return self._history_count
 
     @contextmanager
     def _capture_output(self):
