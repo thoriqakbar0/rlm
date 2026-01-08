@@ -9,7 +9,8 @@ class BaseEnv(ABC):
     where isolated environments are on a separate machine from the LM.
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, persistent: bool = False, **kwargs):
+        self.persistent = persistent
         self.kwargs = kwargs
 
     @abstractmethod
@@ -31,8 +32,8 @@ class IsolatedEnv(BaseEnv, ABC):
     guaranteeing complete isolation from the LM process.
     """
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, persistent: bool = False, **kwargs):
+        super().__init__(persistent=persistent, **kwargs)
 
     @abstractmethod
     def setup(self):
@@ -54,8 +55,8 @@ class NonIsolatedEnv(BaseEnv, ABC):
     as a subprocess.
     """
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, persistent: bool = False, **kwargs):
+        super().__init__(persistent=persistent, **kwargs)
 
     @abstractmethod
     def setup(self):
